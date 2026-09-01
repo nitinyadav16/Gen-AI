@@ -1,0 +1,19 @@
+[server]
+# Streamlit's source watcher walks the __path__ of every imported module. The
+# `transformers` package resolves its submodules lazily on attribute access, so
+# that walk imports optional vision models and fails on the missing torchvision
+# dependency - hundreds of tracebacks and a stalled first response. The model
+# files here never change at runtime, so the watcher earns nothing.
+# Trade-off: edits to .py files need a manual restart instead of auto-reload.
+fileWatcherType = "none"
+headless = true
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"
+primaryColor = "#4f46e5"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f7f8fd"
+textColor = "#141625"

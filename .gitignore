@@ -1,0 +1,26 @@
+# --- secrets: never commit these ---
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# --- virtual environments ---
+.venv/
+venv/
+env/
+
+# --- generated at runtime (rebuild with `python ingest_all.py`) ---
+chroma_store/
+logs/
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# --- editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
