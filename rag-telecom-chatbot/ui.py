@@ -211,6 +211,32 @@ h1, h2, h3, h4, p, li, label,
            padding-top:.85rem; border-top:1px solid var(--nc-line); }
 .nc-meta code { background:transparent; color:var(--nc-ink-2); font-size:.7rem; padding:0; }
 
+/* --- workflow trace (section 12) --------------------------------------- */
+.nc-trace { margin:0; padding:.1rem 0; }
+.nc-trace-line {
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  font-size:.72rem; line-height:1.75; color:var(--nc-ink-2);
+  display:flex; gap:.5rem; align-items:baseline;
+}
+.nc-trace-step { color:var(--nc-ink-3); min-width:1.2rem; text-align:right; }
+
+/* --- demo account panel ------------------------------------------------- */
+.nc-acct-name { font-size:.82rem; font-weight:650; color:var(--nc-ink); }
+.nc-acct-plan { font-size:.72rem; color:var(--nc-ink-3); margin-bottom:.5rem; }
+.nc-rch {
+  display:flex; align-items:center; gap:.45rem; font-size:.76rem;
+  padding:.34rem .5rem; margin-bottom:.3rem;
+  border:1px solid var(--nc-line); border-radius:8px; background:#fff;
+}
+.nc-rch-amt { font-weight:650; color:var(--nc-ink); font-variant-numeric:tabular-nums; }
+.nc-rch-id { color:var(--nc-ink-3); font-size:.68rem; }
+.nc-rch-tag {
+  margin-left:auto; font-size:.62rem; font-weight:700; letter-spacing:.05em;
+  text-transform:uppercase; padding:.12rem .38rem; border-radius:4px;
+}
+.nc-rch-tag--open { background:var(--nc-guide-bg); color:var(--nc-guide); }
+.nc-rch-tag--done { background:var(--nc-surface); color:var(--nc-ink-3); }
+
 /* --- input ------------------------------------------------------------- */
 [data-testid="stChatInput"] { border-radius:14px; border:1px solid var(--nc-line); background:#fff; }
 [data-testid="stChatInput"]:focus-within {
@@ -311,3 +337,37 @@ def meta(model: str, store: str) -> None:
         f'Store <code>{html.escape(store)}</code></div>',
         unsafe_allow_html=True,
     )
+
+
+def trace_block(trace: list[str]) -> None:
+    """Render the workflow steps for one turn (section 12)."""
+    lines = "".join(
+        f'<div class="nc-trace-line"><span class="nc-trace-step">{i}</span>'
+        f"<span>{html.escape(step)}</span></div>"
+        for i, step in enumerate(trace, start=1)
+    )
+    st.markdown(f'<div class="nc-trace">{lines}</div>', unsafe_allow_html=True)
+
+
+def account_panel(account: dict | None) -> None:
+    """Read-only view of the simulated account, so the demo is legible."""
+    if not account:
+        st.markdown('<p class="nc-side-sub">No demo account loaded.</p>', unsafe_allow_html=True)
+        return
+
+    rows = [
+        f'<div class="nc-acct-name">{html.escape(account["name"])}</div>'
+        f'<div class="nc-acct-plan">{html.escape(account["plan"])} plan</div>'
+    ]
+    for recharge in sorted(account["recharges"], key=lambda r: r["recharge_age_days"]):
+        refunded = recharge["refund_status"] != "not_refunded"
+        tag = "Refunded" if refunded else "Refundable"
+        tone = "done" if refunded else "open"
+        rows.append(
+            f'<div class="nc-rch">'
+            f'<span class="nc-rch-amt">\u20b9{recharge["recharge_amount"]:,}</span>'
+            f'<span class="nc-rch-id">{html.escape(recharge["recharge_id"])} · '
+            f'{recharge["recharge_age_days"]}d ago</span>'
+            f'<span class="nc-rch-tag nc-rch-tag--{tone}">{tag}</span></div>'
+        )
+    st.markdown("".join(rows), unsafe_allow_html=True)

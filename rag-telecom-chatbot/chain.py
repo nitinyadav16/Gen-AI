@@ -5,17 +5,11 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_groq import ChatGroq
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-from config import (
-    ESCALATION_HINT,
-    GROQ_MODEL,
-    REASONING_EFFORT,
-    TEMPERATURE,
-    TOP_K,
-    require_api_key,
-)
+from config import ESCALATION_HINT, TOP_K
+from conversation import Turn, to_messages
+from llm import build_llm
 from retriever import MergedRetriever, RetrievedDoc, format_context
 
 SYSTEM_PROMPT = f"""You are the NovaCell telecom customer-care assistant. You help \
@@ -48,20 +42,15 @@ provided information does not contain that".
 CONTEXT:
 {{context}}"""
 
+# Earlier turns sit between the grounding rules and the new question, so a
+# follow-up like "should I do that before I travel?" can resolve "that" (FR-46).
 PROMPT = ChatPromptTemplate.from_messages(
-    [("system", SYSTEM_PROMPT), ("human", "{question}")]
+    [
+        ("system", SYSTEM_PROMPT),
+        MessagesPlaceholder("history", optional=True),
+        ("human", "{question}"),
+    ]
 )
-
-
-def build_llm() -> ChatGroq:
-    """Groq-hosted Qwen, deterministic and with reasoning disabled (FR-12, FR-13)."""
-    api_key = require_api_key()
-    kwargs = dict(model=GROQ_MODEL, temperature=TEMPERATURE, api_key=api_key)
-    try:
-        return ChatGroq(reasoning_effort=REASONING_EFFORT, **kwargs)
-    except TypeError:
-        # Older langchain-groq builds pass provider-specific fields through model_kwargs.
-        return ChatGroq(model_kwargs={"reasoning_effort": REASONING_EFFORT}, **kwargs)
 
 
 def build_generation_chain():
@@ -81,13 +70,32 @@ class RagPipeline:
         self.chain = build_generation_chain()
 
     def retrieve(self, question: str) -> list[RetrievedDoc]:
+        """Retrieval runs on the question exactly as asked.
+
+        Conversation history is deliberately kept out of this call: it informs
+        the answer, never the search query (FR-49).
+        """
         return self.retriever.retrieve(question)
 
-    def stream(self, question: str, documents: list[RetrievedDoc]) -> Iterator[str]:
-        payload = {"context": format_context(documents), "question": question}
-        yield from self.chain.stream(payload)
+    def _payload(
+        self, question: str, documents: list[RetrievedDoc], history: list[Turn] | None
+    ) -> dict:
+        return {
+            "context": format_context(documents),
+            "question": question,
+            "history": to_messages(history or []),
+        }
 
-    def answer(self, question: str) -> tuple[str, list[RetrievedDoc]]:
+    def stream(
+        self,
+        question: str,
+        documents: list[RetrievedDoc],
+        history: list[Turn] | None = None,
+    ) -> Iterator[str]:
+        yield from self.chain.stream(self._payload(question, documents, history))
+
+    def answer(
+        self, question: str, history: list[Turn] | None = None
+    ) -> tuple[str, list[RetrievedDoc]]:
         documents = self.retrieve(question)
-        payload = {"context": format_context(documents), "question": question}
-        return self.chain.invoke(payload), documents
+        return self.chain.invoke(self._payload(question, documents, history)), documents

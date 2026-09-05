@@ -1,8 +1,9 @@
-"""Streamlit UI for the RAG telecom customer-care chatbot.
+"""Streamlit UI for the RAG telecom assistant and its refund agent.
 
     streamlit run app.py
 
-Behaviour lives here; all styling lives in `ui.py`.
+Behaviour lives here; all styling lives in `ui.py`. One chat surface serves both
+routes (section 11) - there is no separate refund dashboard.
 """
 
 from __future__ import annotations
@@ -12,9 +13,13 @@ import uuid
 import streamlit as st
 
 import ui
+from accounts import DEMO_USER_ID, account_snapshot, reset_accounts
 from config import CHROMA_DIR, GROQ_API_KEY, GROQ_MODEL
-from interaction_log import log_answer, log_feedback
+from conversation import from_messages
+from interaction_log import log_answer, log_feedback, log_workflow
+from refund_agent import AWAITING_CONFIRMATION, RefundState
 from retriever import COLLECTIONS
+from router import REFUND_REQUEST, Assistant
 from sample_questions import SAMPLE_QUESTIONS
 from vectorstore import count
 
@@ -30,16 +35,14 @@ FALLBACK_ANSWER = (
     "Please try again, or call 611 / use the MyTelecom app."
 )
 SUBTITLE = (
-    "Ask about data, billing, SIM and eSIM, roaming, calls, or your account. "
-    "Every answer is drawn from NovaCell's own knowledge - never invented."
+    "Ask about data, billing, SIM and eSIM, roaming, calls, or your account - "
+    "or request a refund on a recent recharge."
 )
 
 
 @st.cache_resource(show_spinner="Loading the knowledge base…")
-def get_pipeline():
-    from chain import RagPipeline
-
-    return RagPipeline()
+def get_assistant() -> Assistant:
+    return Assistant(DEMO_USER_ID)
 
 
 def knowledge_status() -> list[tuple]:
@@ -50,6 +53,15 @@ def init_state() -> None:
     st.session_state.setdefault("messages", [])
     st.session_state.setdefault("pending", None)
     st.session_state.setdefault("logged_feedback", {})
+    st.session_state.setdefault("refund_state", RefundState())
+
+
+def clear_conversation() -> None:
+    """Reset history and any refund in flight (FR-48, section 11)."""
+    st.session_state.messages = []
+    st.session_state.pending = None
+    st.session_state.logged_feedback = {}
+    st.session_state.refund_state = RefundState()
 
 
 def sidebar(status: list[tuple]) -> None:
@@ -63,9 +75,14 @@ def sidebar(status: list[tuple]) -> None:
 
         ui.label("Session")
         if st.button("Clear conversation", key="clear", type="primary"):
-            st.session_state.messages = []
-            st.session_state.pending = None
-            st.session_state.logged_feedback = {}
+            clear_conversation()
+            st.rerun()
+
+        ui.label("Demo account")
+        ui.account_panel(account_snapshot(DEMO_USER_ID))
+        if st.button("Reset demo recharges", key="reset-accounts"):
+            reset_accounts()
+            clear_conversation()
             st.rerun()
 
         ui.label("Knowledge base")
@@ -79,6 +96,14 @@ def render_sources(sources: list[dict]) -> None:
         return
     with st.expander(f"Sources · {len(sources)} documents"):
         ui.source_cards(sources)
+
+
+def render_trace(trace: list[str]) -> None:
+    """The workflow steps this turn took (section 12). No model reasoning."""
+    if not trace:
+        return
+    with st.expander("Workflow trace"):
+        ui.trace_block(trace)
 
 
 def render_feedback(message: dict) -> None:
@@ -99,7 +124,53 @@ def render_history() -> None:
             st.markdown(message["content"])
             if message["role"] == "assistant":
                 render_sources(message.get("sources", []))
+                render_trace(message.get("trace", []))
                 render_feedback(message)
+
+
+def confirmation_controls() -> None:
+    """Explicit confirm / cancel for an eligible refund (section 11, FR-36)."""
+    state = st.session_state.refund_state
+    if state.status != AWAITING_CONFIRMATION:
+        return
+
+    assistant = get_assistant()
+    left, right, _ = st.columns([1, 1, 2])
+    with left:
+        if st.button("Confirm refund", key="confirm-refund", type="primary"):
+            reply = assistant.agent.confirm(state)
+            record_assistant(reply.text, trace=reply.trace, question="[confirm refund]",
+                             intent=REFUND_REQUEST)
+            st.rerun()
+    with right:
+        if st.button("Cancel", key="cancel-refund"):
+            reply = assistant.agent.cancel(state)
+            record_assistant(reply.text, trace=reply.trace, question="[cancel refund]",
+                             intent=REFUND_REQUEST)
+            st.rerun()
+
+
+def record_assistant(
+    text: str,
+    sources: list[dict] | None = None,
+    trace: list[str] | None = None,
+    question: str = "",
+    intent: str = "",
+) -> None:
+    turn_id = uuid.uuid4().hex[:12]
+    st.session_state.messages.append(
+        {
+            "role": "assistant",
+            "content": text,
+            "sources": sources or [],
+            "trace": trace or [],
+            "turn_id": turn_id,
+            "question": question,
+        }
+    )
+    log_answer(turn_id, question, text, [s["citation"] for s in (sources or [])])
+    if trace:
+        log_workflow(turn_id, question, intent, trace)
 
 
 def welcome(status: list[tuple]) -> None:
@@ -116,21 +187,43 @@ def welcome(status: list[tuple]) -> None:
 
 
 def answer_question(question: str) -> None:
+    assistant = get_assistant()
+    state = st.session_state.refund_state
+
+    # History is the conversation *before* this message (FR-46).
+    history = from_messages(st.session_state.messages)
+
     st.session_state.messages.append({"role": "user", "content": question})
     with st.chat_message("user"):
         st.markdown(question)
 
-    turn_id = uuid.uuid4().hex[:12]
-
     with st.chat_message("assistant"):
         try:
-            pipeline = get_pipeline()
+            intent = assistant.route(question, state, history)
+        except Exception:
+            intent = "requirement_inquiry"
+
+        if intent == REFUND_REQUEST:
+            with st.spinner("Checking your account…"):
+                reply = assistant.handle_refund(question, state, history)
+            st.markdown(reply.text)
+            render_trace(reply.trace)
+            st.session_state.refund_state = reply.state
+            record_assistant(reply.text, trace=reply.trace, question=question, intent=intent)
+            st.rerun()
+            return
+
+        # requirement_inquiry: the existing RAG pipeline, unchanged (FR-02).
+        trace = ["[Intent] requirement_inquiry"]
+        try:
             with st.spinner("Searching NovaCell's knowledge…"):
-                documents = pipeline.retrieve(question)
-            answer = st.write_stream(pipeline.stream(question, documents))
-        except Exception as error:  # network / API-key / model failures
+                documents = assistant.retrieve(question)
+            trace.append(f"[RAG] retrieved {len(documents)} documents")
+            answer = st.write_stream(assistant.stream(question, documents, history))
+        except Exception as error:
             answer = FALLBACK_ANSWER
             documents = []
+            trace.append("[RAG] failed")
             st.error(f"{FALLBACK_ANSWER}\n\nDetails: {error}")
 
         sources = [
@@ -144,17 +237,9 @@ def answer_question(question: str) -> None:
             for doc in documents
         ]
         render_sources(sources)
+        render_trace(trace)
 
-    st.session_state.messages.append(
-        {
-            "role": "assistant",
-            "content": answer,
-            "sources": sources,
-            "turn_id": turn_id,
-            "question": question,
-        }
-    )
-    log_answer(turn_id, question, answer, [s["citation"] for s in sources])
+    record_assistant(answer, sources=sources, trace=trace, question=question, intent=intent)
     st.rerun()
 
 
@@ -180,10 +265,11 @@ def main() -> None:
     if st.session_state.messages:
         ui.compact_header("Grounded in FAQ, tickets and guides")
         render_history()
+        confirmation_controls()
     else:
         welcome(status)
 
-    typed = st.chat_input("Ask a question about your NovaCell service…")
+    typed = st.chat_input("Ask a question, or request a refund…")
     question = typed or st.session_state.pending
     if question:
         st.session_state.pending = None

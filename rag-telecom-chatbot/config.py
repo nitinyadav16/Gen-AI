@@ -51,6 +51,16 @@ REASONING_EFFORT = "none"             # FR-13
 
 ESCALATION_HINT = "call 611 or use the MyTelecom app"
 
+# --- Conversation memory ---------------------------------------------------
+# One exchange = one user message plus one assistant reply. The most recent
+# exchanges are replayed as context on the next turn (FR-46, FR-50).
+HISTORY_EXCHANGES = 4
+
+# --- Refund capability -----------------------------------------------------
+CURRENCY = "₹"              # rupee sign, used in every customer-facing amount
+REFUND_WINDOW_DAYS = 7           # FR-25
+REFUND_APPROVAL_LIMIT = 499      # FR-36 / FR-37, enforced in code, never by the LLM (FR-36a)
+
 
 def require_api_key() -> str:
     """Return the Groq API key, or raise a clear, actionable error."""

@@ -38,3 +38,20 @@ def log_feedback(turn_id: str, question: str, rating: str) -> None:
             "rating": rating,
         }
     )
+
+
+def log_workflow(turn_id: str, question: str, intent: str, trace: list[str]) -> None:
+    """Record the routed intent and the agent's workflow steps (section 12).
+
+    Only the discrete steps the application took - never the model's private
+    reasoning.
+    """
+    _write(
+        {
+            "event": "workflow",
+            "turn_id": turn_id,
+            "question": question,
+            "intent": intent,
+            "trace": trace,
+        }
+    )

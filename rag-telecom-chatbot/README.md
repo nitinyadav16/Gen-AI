@@ -86,12 +86,21 @@ python main.py
 | `ingest_faq.py`, `ingest_tickets.py`, `ingest_guide.py`, `ingest_all.py` | Knowledge ingestion |
 | `retriever.py` | Collection registry + parallel merged retriever + context formatting |
 | `chain.py` | Grounding prompt, Groq LLM, LCEL chain, `RagPipeline` |
+| `llm.py` | Shared Groq model factory, reused by every route |
+| `conversation.py` | Session history window shared by both routes |
+| `router.py` | Intent routing: RAG pipeline or Refund Agent |
+| `intent.py` | Classifies `requirement_inquiry` vs `refund_request` |
+| `accounts.py` | Hard-coded demo account and recharges |
+| `refund_tools.py` | The four refund tools + deterministic validation rules |
+| `refund_agent.py` | Tool-using agent inside a deterministic state machine |
 | `app.py` | Streamlit interface (behaviour) |
 | `ui.py` | Interface styling: design tokens, CSS, and HTML render helpers |
 | `main.py` | CLI REPL |
 | `interaction_log.py` | Appends answers and 👍/👎 votes to `logs/interactions.jsonl` |
 | `smoke_test.py` | Offline check of ingestion + retrieval (no API calls, no cost) |
 | `live_test.py` | Live check against Groq: grounding, escalation, latency |
+| `test_refund.py` | Offline tests: the 7 refund scenarios and every guardrail |
+| `live_agent_test.py` | Live check of intent routing and the agent tool loop |
 | `.streamlit/config.toml` | Disables Streamlit's source watcher (see below) |
 
 ### Adding a knowledge source
@@ -101,6 +110,70 @@ python main.py
 
 The retriever, prompt context, Sources panel, and status banner pick it up
 automatically.
+
+## Agentic refund capability
+
+The assistant classifies every message, then routes it:
+
+```
+                        message
+                           |
+                    Intent detection
+              /                             requirement_inquiry              refund_request
+           |                              |
+    existing RAG pipeline           Refund Agent
+                                          |
+                          get_user_account / validate_refund
+                                          |
+                                   eligible?  -- no --> rejected, reason given
+                                          |
+                                   amount <= Rs 499 ?
+                                    /                                              yes             no
+                                   |               |
+                          confirm / cancel   submitted to Support Team
+                                   |
+                            process_refund
+```
+
+### What the model decides, and what it cannot
+
+The agent genuinely calls tools - it chooses when to read the account and which
+amount to validate. But every decision that matters is application code:
+
+| Decided by the model | Decided by code |
+|---|---|
+| Which tool to call | Whether the refund is eligible |
+| Which amount to propose | The Rs 499 approval limit |
+| Wording of the intent label | Whether a reply counts as confirmation |
+| | Whether a refund executes at all |
+
+`get_user_account` and `validate_refund` are bound to the model.
+`process_refund` and `submit_to_support` **are never exposed to it** - they are
+reachable only through the state machine, after validation and an explicit yes.
+
+The guardrails that follow from that:
+
+* A refund request is not itself a confirmation - the user must say yes.
+* An ambiguous reply asks again rather than executing.
+* An amount the customer never typed is never validated, so the agent cannot
+  invent one.
+* Amounts above Rs 499 go to the Support Team, and the agent never claims what
+  the Support Team decided.
+* What the customer asserts about their recharges never overrides the account.
+
+### Demo account
+
+One hard-coded user (`user_123`), treated as if it arrived from an
+authenticated session - the customer is never asked for an id. It has two
+recharges: **Rs 499** (refundable here) and **Rs 999** (above the limit, goes to
+Support). The sidebar shows both and their live refund status; **Reset demo
+recharges** restores them.
+
+### Conversation context
+
+The last few exchanges are passed to both routes, so "should I do that before I
+travel?" resolves against the previous answer. Retrieval is deliberately left
+alone: the search query is always the question exactly as asked.
 
 ## Grounding behaviour
 
@@ -116,8 +189,10 @@ document as `FAQ 16`, `TICKET TK-006`, `GUIDE p.8 #31`.
 ## Tests
 
 ```bash
-python smoke_test.py    # offline: collection counts, 9-doc retrieval, context labels
-python live_test.py     # live: calls Groq, prints answers + latency for 5 cases
+python test_refund.py      # offline: 29 tests, refund scenarios + guardrails
+python smoke_test.py       # offline: collection counts, 9-doc retrieval, context labels
+python live_test.py        # live: grounded answers + latency for 5 cases
+python live_agent_test.py  # live: intent routing and the agent tool loop
 ```
 
 `live_test.py` covers three in-scope questions plus two boundary cases — an
