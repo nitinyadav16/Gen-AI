@@ -63,11 +63,21 @@ class RefundState:
     def pending(self) -> bool:
         return self.status in (AWAITING_CONFIRMATION, AWAITING_AMOUNT)
 
-    def reset(self) -> None:
-        self.status = IDLE
+    def finish(self, status: str) -> None:
+        """Settle into a terminal state (section 10).
+
+        The working fields are cleared so nothing can be executed twice, but the
+        terminal status itself is kept: it is what the UI and the log read to
+        say how the refund ended. The next request overwrites it.
+        """
         self.amount = None
         self.recharge_id = None
         self.offered_amounts = []
+        self.status = status
+
+    def reset(self) -> None:
+        """Full clear, back to idle - used when the conversation is cleared."""
+        self.finish(IDLE)
 
 
 @dataclass
@@ -266,9 +276,8 @@ class RefundAgent:
     def cancel(self, state: RefundState) -> AgentReply:
         """Explicit rejection, e.g. the UI's Cancel button (FR-36d)."""
         trace = ["[User] rejected", "[Agent] refund_cancelled"]
-        state.status = REFUND_CANCELLED
         amount = state.amount
-        state.reset()
+        state.finish(REFUND_CANCELLED)
         return AgentReply(
             text=(
                 f"No problem - I have not processed the refund"
@@ -315,7 +324,9 @@ class RefundAgent:
         validations = self._run_tool_loop(message, history, trace)
 
         # The model may propose an amount; it is accepted only if the customer
-        # actually said it. Anything else would be an invented amount (FR-44).
+        # actually said it in *this* message, or we offered it. Anything else
+        # would be invented (FR-44), and an amount recalled from an earlier turn
+        # must not stand in for account data either (GR-10).
         amount: int | None = None
         for result in reversed(validations):
             candidate = result.get("requested_amount")
@@ -374,8 +385,7 @@ class RefundAgent:
             trace.append(f"[Validation] eligible={result['eligible']}")
 
         if not result["eligible"]:                                 # FR-13, GR-01
-            state.status = REFUND_REJECTED
-            state.reset()
+            state.finish(REFUND_REJECTED)
             trace.append("[Agent] refund_rejected")
             return AgentReply(
                 text=(
@@ -392,7 +402,7 @@ class RefundAgent:
         if amount > REFUND_APPROVAL_LIMIT:                         # FR-37 .. FR-40a
             return self._submit(amount, result, state, trace)
 
-        state.status = AWAITING_CONFIRMATION                       # FR-36, FR-36b
+        state.status = AWAITING_CONFIRMATION            # FR-11, FR-36, FR-36b
         trace.append("[Agent] awaiting_user_confirmation")
         return AgentReply(
             text=(
@@ -410,12 +420,15 @@ class RefundAgent:
     def _submit(
         self, amount: int, result: dict, state: RefundState, trace: list[str]
     ) -> AgentReply:
-        """Above the limit: hand to the Support Team and stop (FR-38 .. FR-40a)."""
+        """Above the limit: hand to the Support Team and stop (FR-38 .. FR-40a).
+
+        The state settles as submitted, not awaiting confirmation, so no later
+        turn can reach `process_refund` for this request (FR-39).
+        """
         trace.append(f"[Agent] submit_to_support(amount={amount})")
         receipt = refund_tools.submit_to_support(self.user_id, amount, result["recharge_id"])
         trace.append("[Support] submitted_for_review")
-        state.status = REFUND_SUBMITTED_FOR_REVIEW
-        state.reset()
+        state.finish(REFUND_SUBMITTED_FOR_REVIEW)
         return AgentReply(
             text=(
                 f"Your refund request for {money(amount)} has been submitted to our "
@@ -453,8 +466,7 @@ class RefundAgent:
 
         if not receipt["success"]:
             trace.append("[Refund] rejected")
-            state.status = REFUND_REJECTED
-            state.reset()
+            state.finish(REFUND_REJECTED)
             return AgentReply(
                 text=(
                     f"I could not complete the refund of {money(amount)}. "
@@ -465,8 +477,7 @@ class RefundAgent:
             )
 
         trace.append("[Refund] success")
-        state.status = REFUND_PROCESSED
-        state.reset()
+        state.finish(REFUND_PROCESSED)
         return AgentReply(
             text=(
                 f"Done - I have refunded {money(amount)}.\n\n"

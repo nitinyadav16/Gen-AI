@@ -7,9 +7,9 @@ Section 6.4 defines four tools. Only the first two are ever handed to the LLM:
     process_refund     FR-21   application-only (FR-23a)
     submit_to_support  FR-21a  application-only (FR-23a)
 
-Eligibility is decided here, in plain Python, never by the model (FR-29, FR-30,
-GR-05). The agent may choose *which* tool to call and with what amount; it can
-never choose the answer.
+Every tool returns a structured dict (FR-22). Eligibility is decided here, in
+plain Python, never by the model (FR-29, FR-30, GR-05): the agent may choose
+*which* tool to call and with what amount, but it can never choose the answer.
 """
 
 from __future__ import annotations
@@ -156,7 +156,8 @@ def process_refund(user_id: str, amount: int, recharge_id: str) -> dict[str, Any
 
     Callers must have validated (FR-31) and obtained explicit confirmation
     (FR-32) first; `refund_agent` is the only caller and enforces both. No
-    payment or billing API exists here - the refund is a local state flip.
+    payment or billing API exists here - the refund is a local state flip, and
+    the returned reference is simulated too (FR-34, FR-35, GR-07).
     """
     check = validate_refund(user_id, amount)
     if not check["eligible"] or check["recharge_id"] != recharge_id:

@@ -17,10 +17,14 @@ import accounts
 import refund_tools
 from accounts import DEMO_USER_ID, account_snapshot, reset_accounts
 from config import REFUND_APPROVAL_LIMIT, REFUND_WINDOW_DAYS
+from conversation import Turn
 from refund_agent import (
     AWAITING_AMOUNT,
     AWAITING_CONFIRMATION,
+    REFUND_CANCELLED,
     REFUND_PROCESSED,
+    REFUND_REJECTED,
+    REFUND_SUBMITTED_FOR_REVIEW,
     RefundAgent,
     RefundState,
     amounts_in,
@@ -260,6 +264,91 @@ class TestGuardrails(RefundTestCase):
         reply = self.ask("I want a refund.")
         for phrase in ("user id", "user_id", "account number", "your id"):
             self.assertNotIn(phrase, reply.text.lower())
+
+
+class TestStateMachine(RefundTestCase):
+    """Section 10 - every listed state must be reachable and observable."""
+
+    def test_terminal_states_are_visible_after_the_turn(self):
+        cases = {
+            "rejected": (lambda: self.ask("refund 2000"), REFUND_REJECTED),
+            "submitted": (lambda: self.ask("refund 999"), REFUND_SUBMITTED_FOR_REVIEW),
+        }
+        for name, (action, expected) in cases.items():
+            with self.subTest(name):
+                reset_accounts()
+                self.state = RefundState()
+                reply = action()
+                self.assertEqual(reply.state.status, expected)
+
+    def test_processed_and_cancelled_states(self):
+        self.ask("refund 499")
+        self.assertEqual(self.state.status, AWAITING_CONFIRMATION)
+        done = self.agent.confirm(self.state)
+        self.assertEqual(done.state.status, REFUND_PROCESSED)
+
+        reset_accounts()
+        self.state = RefundState()
+        self.ask("refund 499")
+        stopped = self.agent.cancel(self.state)
+        self.assertEqual(stopped.state.status, REFUND_CANCELLED)
+
+    def test_terminal_state_is_not_pending(self):
+        """A settled refund must not capture the next message."""
+        reply = self.ask("refund 2000")
+        self.assertFalse(reply.state.pending)
+
+    def test_awaiting_amount_state(self):
+        reply = self.ask("I want a refund.")
+        self.assertEqual(reply.state.status, AWAITING_AMOUNT)
+        self.assertTrue(reply.state.pending)
+
+
+class TestUncitedRequirements(RefundTestCase):
+    """Requirements verified by behaviour rather than by an annotation."""
+
+    def test_fr22_tools_return_structured_results(self):
+        account = refund_tools.get_user_account(DEMO_USER_ID)
+        self.assertIsInstance(account, dict)
+        self.assertIn("recharges", account)
+
+        check = refund_tools.validate_refund(DEMO_USER_ID, 499)
+        self.assertEqual(
+            set(check),
+            {"eligible", "reason", "requested_amount", "recharge_amount", "recharge_id"},
+        )
+
+    def test_fr34_execution_returns_a_reference(self):
+        receipt = refund_tools.process_refund(DEMO_USER_ID, 499, "rch_457")
+        self.assertTrue(receipt["success"])
+        self.assertTrue(receipt["refund_id"].startswith("ref_"))
+        self.assertEqual(receipt["status"], "refunded")
+
+    def test_fr39_no_refund_after_submission(self):
+        self.ask("I want a refund of 999.")
+        with patch.object(refund_tools, "process_refund") as never:
+            self.agent.confirm(self.state)
+            never.assert_not_called()
+        self.assertEqual(recharge(DEMO_USER_ID, "rch_456")["refund_status"], "not_refunded")
+
+    def test_gr10_history_amount_is_not_reused(self):
+        """An amount mentioned only in an earlier turn must not be validated."""
+        history = [
+            Turn("user", "I want a refund of 499"),
+            Turn("assistant", "Which amount would you like refunded?"),
+        ]
+        reply = self.agent.handle("go on then", RefundState(), history)
+        self.assertFalse(reply.awaiting_confirmation)
+        self.assertEqual(recharge(DEMO_USER_ID, "rch_457")["refund_status"], "not_refunded")
+
+    def test_gr07_refund_is_simulated_only(self):
+        """The refund is a local state flip - nothing leaves the process."""
+        before = recharge(DEMO_USER_ID, "rch_457")["refund_status"]
+        refund_tools.process_refund(DEMO_USER_ID, 499, "rch_457")
+        after = recharge(DEMO_USER_ID, "rch_457")["refund_status"]
+        self.assertEqual((before, after), ("not_refunded", "refunded"))
+        reset_accounts()
+        self.assertEqual(recharge(DEMO_USER_ID, "rch_457")["refund_status"], "not_refunded")
 
 
 class TestHelpers(unittest.TestCase):
