@@ -1,0 +1,80 @@
+{
+  "as_of": "2026-10-19",
+  "latest_week": "2026-10-18",
+  "retailers": {
+    "Retailer A": {
+      "osa": {
+        "last_refreshed": "2026-10-19",
+        "owner": "Retailer data portal team",
+        "required": true
+      },
+      "pos": {
+        "last_refreshed": "2026-10-19",
+        "owner": "Retailer data portal team",
+        "required": true
+      },
+      "store_inventory": {
+        "last_refreshed": "2026-10-19",
+        "owner": "Retailer data portal team",
+        "required": true
+      },
+      "shipments": {
+        "last_refreshed": "2026-10-19",
+        "owner": "Customer supply ops",
+        "required": true
+      },
+      "dc": {
+        "last_refreshed": "2026-10-19",
+        "owner": "Customer supply ops",
+        "required": true
+      },
+      "audits": {
+        "last_refreshed": "2026-10-19",
+        "owner": "Field execution app admin",
+        "required": false
+      },
+      "promo": {
+        "last_refreshed": "2026-10-19",
+        "owner": "Trade promotion team",
+        "required": false
+      }
+    },
+    "Retailer B": {
+      "osa": {
+        "last_refreshed": "2026-10-19",
+        "owner": "Retailer data portal team",
+        "required": true
+      },
+      "pos": {
+        "last_refreshed": "2026-10-19",
+        "owner": "Retailer data portal team",
+        "required": true
+      },
+      "store_inventory": {
+        "last_refreshed": "2026-10-19",
+        "owner": "Retailer data portal team",
+        "required": true
+      },
+      "shipments": {
+        "last_refreshed": "2026-10-19",
+        "owner": "Customer supply ops",
+        "required": true
+      },
+      "dc": {
+        "last_refreshed": "2026-10-19",
+        "owner": "Customer supply ops",
+        "required": true
+      },
+      "audits": {
+        "last_refreshed": "2026-10-19",
+        "owner": "Field execution app admin",
+        "required": false
+      },
+      "promo": {
+        "last_refreshed": "2026-10-19",
+        "owner": "Trade promotion team",
+        "required": false
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+sku,sku_name,category,price,margin_pct
+CH-001,Ibuprofen 200mg 24ct,Pain Relief,7.99,32.6
+CH-002,Acetaminophen 500mg 50ct,Pain Relief,8.49,47.2
+CH-003,Naproxen 220mg 24ct,Pain Relief,9.29,29.4
+CH-004,Aspirin 81mg 120ct,Pain Relief,6.49,41.0
+CH-005,Cold & Flu Day/Night 24ct,Cold & Flu,10.99,37.1
+CH-006,Cough Syrup 8oz,Cold & Flu,9.49,53.7
+CH-007,Saline Nasal Spray 1.5oz,Cold & Flu,6.99,53.1
+CH-008,Loratadine 10mg 30ct,Allergy,14.99,33.6
+CH-009,Cetirizine 10mg 30ct,Allergy,16.99,48.6
+CH-010,Antacid Chewables 96ct,Digestive,6.99,36.9
+CH-011,Heartburn Relief 14ct,Digestive,13.49,39.8
+CH-012,Adult Multivitamin 100ct,Vitamins,12.99,29.3
+CH-013,Vitamin D3 2000IU 90ct,Vitamins,9.99,36.3
+CH-014,Vitamin C 1000mg 60ct,Vitamins,8.99,35.5
+CH-015,Zinc Lozenges 24ct,Cold & Flu,7.49,40.6
+CH-016,Sleep Aid 32ct,Sleep,9.79,42.2
+CH-017,Throat Lozenges 30ct,Cold & Flu,4.49,52.9
+CH-018,Antiseptic Cream 1oz,First Aid,6.29,38.1
+CH-019,Bandages Assorted 60ct,First Aid,5.99,30.7
+CH-020,Hydrocortisone Cream 1oz,First Aid,7.29,33.6

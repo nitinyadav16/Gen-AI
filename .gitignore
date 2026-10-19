@@ -24,3 +24,6 @@ __pycache__/
 .idea/
 .DS_Store
 Thumbs.db
+
+# --- osa-copilot runtime output ---
+eval_run.log

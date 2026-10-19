@@ -1,0 +1,62 @@
+{
+  "version": "playbook-v1.0",
+  "owner": "Retail Execution product team",
+  "entries": [
+    {
+      "entry_id": "PB-01",
+      "cause": "DC_SHORTAGE",
+      "action": "Escalate to the Supply Chain Planner to expedite DC replenishment for the SKU and prioritise allocation of available DC stock to the affected stores.",
+      "owner": "Supply Chain / Demand Planner",
+      "turnaround": "Plan agreed within 48 hours; stock in store within 5 days",
+      "channel": "escalation"
+    },
+    {
+      "entry_id": "PB-02",
+      "cause": "ORDER_CUT",
+      "action": "Escalate to the Supply Chain Planner to review the manufacturer order cut and allocation rules for the SKU and restore case fill to the DC.",
+      "owner": "Supply Chain / Demand Planner",
+      "turnaround": "Root cause confirmed within 48 hours; fill restored within 7 days",
+      "channel": "escalation"
+    },
+    {
+      "entry_id": "PB-03",
+      "cause": "STORE_ORDERING_MISS",
+      "action": "Field rep to check the store's auto-replenishment settings for the SKU, place a manual order, and ask the retailer store contact to correct the order parameters.",
+      "owner": "Field Sales Rep",
+      "turnaround": "Manual order within 2 days; settings corrected within 1 week",
+      "channel": "brief"
+    },
+    {
+      "entry_id": "PB-04",
+      "cause": "PHANTOM_INVENTORY",
+      "action": "Field rep to run a physical count of the SKU and ask the store to correct the system on-hand so replenishment orders trigger again.",
+      "owner": "Field Sales Rep with retailer store operations",
+      "turnaround": "Count and correction within 3 days",
+      "channel": "brief"
+    },
+    {
+      "entry_id": "PB-05",
+      "cause": "SHELF_EXECUTION_GAP",
+      "action": "Field rep to restock the shelf from backroom stock and restore the planogram facings for the SKU on the next visit.",
+      "owner": "Field Sales Rep",
+      "turnaround": "Next store visit, within 2 days",
+      "channel": "brief"
+    },
+    {
+      "entry_id": "PB-06",
+      "cause": "DELISTING",
+      "action": "Confirm the ranging decision with the retailer category buyer and request reinstatement on the planogram if the SKU was removed in error.",
+      "owner": "Key Account Manager",
+      "turnaround": "Buyer response within 10 days",
+      "channel": "brief"
+    },
+    {
+      "entry_id": "PB-07",
+      "cause": "PROMO_DEMAND_SPIKE",
+      "action": "Raise store orders for the remaining promotion weeks and share actual promo sell-through with demand planning to correct the promo forecast.",
+      "owner": "Field Sales Rep with Demand Planner",
+      "turnaround": "Orders raised within 2 days; forecast updated within 5 days",
+      "channel": "brief"
+    }
+  ]
+}
