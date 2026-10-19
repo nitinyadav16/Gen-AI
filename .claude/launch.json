@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "osa-copilot",
+      "runtimeExecutable": "osa-copilot/.venv/Scripts/streamlit.exe",
+      "runtimeArgs": ["run", "osa-copilot/app.py", "--server.port", "8501", "--server.headless", "true"],
+      "port": 8501
+    }
+  ]
+}

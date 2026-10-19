@@ -42,6 +42,9 @@ QA_PROMPT_VERSION = "qa-v1.0"
 
 CURRENCY = "$"
 
+# Standard operating procedure for managers, linked from the app sidebar.
+SOP_URL = os.getenv("SOP_URL", "https://claude.ai/code/artifact/c9c380ca-495b-4f56-8f9a-c5bc1ee7f29e").strip()
+
 
 # --- Detection rules (FR-3, FR-2) -------------------------------------------
 @dataclass(frozen=True)

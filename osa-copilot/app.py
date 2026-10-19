@@ -24,6 +24,8 @@ CONF_BADGE = {"high": "🟢 high", "medium": "🟡 medium", "low": "⚪ low"}
 # --- session --------------------------------------------------------------------
 with st.sidebar:
     st.title("OSA Root-Cause Copilot")
+    st.link_button("How to use this tool (SOP)", config.SOP_URL, icon=":material/menu_book:",
+                   width="stretch", help="Step-by-step procedure for the weekly OSA review")
     user = st.text_input("Signed in as", value="retail.exec.manager")
     retailer = st.selectbox("Retailer scope (set by your account)", available_retailers(),
                             help="A manager is scoped to one retailer; other retailers' data is never loaded.")
